@@ -1,14 +1,51 @@
+import os
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 import feedparser
+import requests
 
-bot_token = ""
-app_token = ""
-feed_link = "https://ysws.hackclub.com/feed.xml"
+
+
+bot_token = os.environ.get("SLACK_BOT_TOKEN")
+app_token = os.environ.get("SLACK_APP_TOKEN")
+ysws_feed_link = "https://ysws.hackclub.com/feed.xml"
+toolbox_feed_link = "https://raw.githubusercontent.com/hackclub/toolbox/main/manifest.js"
 bot = App(token = bot_token)
 
-def feed_send(say):
-    feed = feedparser.parse(feed_link)
+
+
+@bot.event("app_mention")
+def mention_event(event,say):
+    user = event.get("user")
+    say(
+        text = "Hello <@" + user + ">Select option:",
+        blocks = [
+            {
+                "type":"section",
+                "text":{"type":"mrkdwn","text":"Hello <@" + user + "> \nPlease select an option:"},
+            },
+            {
+                "type":"actions",
+                "elements":[
+                    {
+                        "type":"button",
+                        "text":{"type": "plain_text","text":"YSWS"},
+                        "action_id":"ysws_button",
+                    },
+                    {
+                        "type":"button",
+                        "text":{"type": "plain_text","text":"Toolbox"},
+                        "action_id":"toolbox_button",
+                    }
+                ]
+            }
+        ]
+    )
+
+
+
+def ysws_feed_send(say):
+    feed = feedparser.parse(ysws_feed_link)
     out = ""
     for entry in feed.entries:
         title = entry.get("title")
@@ -34,41 +71,73 @@ def feed_send(say):
     out += "\nFull site: https://ysws.hackclub.com/"
     say(out)
 
-@bot.event("app_mention")
-def mention_event(event,say):
-    user = event.get("user")
-    say(
-        text = "Hello <@" + user + ">Select option:",
-        blocks = [
-            {
-                "type":"section",
-                "text":{"type":"mrkdwn","text":"Hello <@" + user + "> \nPlease select an option:"},
-            },
-            {
-                "type":"actions",
-                "elements":[
-                    {
-                        "type":"button",
-                        "text":{"type": "plain_text","text":"YSWS"},
-                        "action_id":"ysws_button",
-                    }
-                ]
-            }
-        ]
-    )
-
 @bot.action("ysws_button")
 def handle_ysws_click(ack,body,say):
     ack()
     user_id = body["user"]["id"]
     say("<@" + user_id + "> *You Ship We Ship Programs:-*")
-    feed_send(say)
+    ysws_feed_send(say)
 
 @bot.message("YSWS")
 def handle_ysws(message,say):
     user_id = message.get("user")
     say("<@" + user_id + "> *You Ship We Ship Programs:-*")
-    feed_send(say)
+    ysws_feed_send(say)
+
+
+
+def toolbox_feed_send(say):
+    response = requests.get(toolbox_feed_link)
+    out = ""
+    past_title = None
+    past_desc = None
+    past_link = None
+    for line in response.text.splitlines():
+        s = line.strip()
+        if "name:" in s:
+            start = s.find("'")
+            if start == -1:
+                start = s.find('"')
+            if start != -1:
+                end = s.find(s[start], start + 1)
+                if end != -1:
+                    past_title = s[start + 1:end]
+        if "description:" in s:
+            start = s.find("'")
+            if start == -1:
+                start = s.find('"')
+            if start != -1:
+                end = s.find(s[start], start + 1)
+                if end != -1:
+                    past_desc = s[start + 1:end]
+        if "url:" in s:
+            start = s.find("'")
+            if start == -1:
+                start = s.find('"')
+            if start != -1:
+                end = s.find(s[start], start + 1)
+                if end != -1:
+                    past_link = s[start + 1:end]
+                    title = past_title if past_title else past_link
+                    desc = past_desc if past_desc else past_link
+                    if past_link.find("http") != -1:
+                        out += "\n• <" + past_link + "|" + title + ">\n" + "*Description:* " + desc
+    say(out)
+
+@bot.action("toolbox_button")
+def handle_toolbox_click(ack,body,say):
+    ack()
+    user_id = body["user"]["id"]
+    say("<@" + user_id + "> *Toolbox:-*")
+    toolbox_feed_send(say)
+
+@bot.message("Toolbox")
+def handle_toolbox(message, say):
+    user_id = message.get("user")
+    say("<@" + user_id + "> *Toolbox:-*")
+    toolbox_feed_send(say)
+
+
 
 if __name__ == "__main__":
     handler=SocketModeHandler(bot,app_token)
