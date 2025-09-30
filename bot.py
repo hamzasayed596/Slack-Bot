@@ -121,7 +121,7 @@ def toolbox_feed_send(say):
                     title = past_title if past_title else past_link
                     desc = past_desc if past_desc else past_link
                     if past_link.find("http") != -1:
-                        out += "\n• <" + past_link + "|" + title + ">\n" + "*Description:* " + desc
+                        out += "\n• <" + past_link + "|" + title + ">\n"
     say(out)
 
 @bot.action("toolbox_button")
@@ -142,3 +142,4 @@ def handle_toolbox(message, say):
 if __name__ == "__main__":
     handler=SocketModeHandler(bot,app_token)
     handler.start()
+
